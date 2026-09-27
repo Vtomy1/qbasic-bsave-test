@@ -1,0 +1,6 @@
+{
+  "name": "QBasic BSAVE Converter & Loader",
+  "description": "Convert images to QBasic BSAVE binary files (1-bit, 2-bit, 4-bit, 8-bit) with vintage dithering algorithms, palette quantization, CRT preview, and runnable QuickBASIC loader code.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
