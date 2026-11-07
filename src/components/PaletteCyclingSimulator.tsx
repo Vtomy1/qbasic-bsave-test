@@ -7,6 +7,7 @@ import {
   generateQBasicPaletteCycleCode 
 } from '../utils/paletteCycling';
 import { PaletteViewer } from './PaletteViewer';
+import { VgaPaletteCodeExporter } from './VgaPaletteCodeExporter';
 import { 
   Play, 
   Pause, 
@@ -27,7 +28,10 @@ import {
   Tv,
   HelpCircle,
   ExternalLink,
-  Info
+  Info,
+  ChevronDown,
+  Layers,
+  Cpu
 } from 'lucide-react';
 
 interface PaletteCyclingSimulatorProps {
@@ -67,6 +71,7 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
   // CRT preview options
   const [showScanlines, setShowScanlines] = useState<boolean>(true);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
+  const [codeViewMode, setCodeViewMode] = useState<'vga_ports' | 'cycling_loop'>('vga_ports');
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -243,8 +248,71 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
 
       {/* Main Interactive Cycling Console */}
       <div className="p-4 rounded-xl border border-neutral-800 bg-neutral-900/60 space-y-4">
+        {/* Pre-defined Cycling Pattern Dropdown Selector */}
+        <div className="p-3.5 rounded-lg border border-neutral-800 bg-neutral-950/80 space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label htmlFor="pattern-dropdown" className="text-xs font-semibold text-neutral-200 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <span>Pre-Defined Cycling Pattern:</span>
+            </label>
+            {activePresetId ? (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 border border-amber-400/30 flex items-center gap-1.5 animate-pulse">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+                <span>Auto-Animating: {presets.find(p => p.id === activePresetId)?.name}</span>
+              </span>
+            ) : (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 border border-neutral-700">
+                Custom Index Range
+              </span>
+            )}
+          </div>
+
+          <div className="relative">
+            <select
+              id="pattern-dropdown"
+              value={activePresetId || 'custom'}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val === 'custom') {
+                  setActivePresetId(null);
+                  return;
+                }
+                const found = presets.find(p => p.id === val);
+                if (found) {
+                  handleApplyPreset(found);
+                }
+              }}
+              className="w-full appearance-none bg-neutral-900 border border-neutral-700 hover:border-amber-400/80 rounded-lg px-3.5 py-2.5 pr-10 text-xs font-semibold text-neutral-100 transition-colors cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400"
+            >
+              <optgroup label="Pre-Defined Cycling Patterns">
+                {presets.map(p => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} — (Indices {p.start} to {p.end} · {p.speedFps} FPS {p.direction === 'forward' ? '▶ Forward' : '◀ Reverse'})
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="Manual User Range">
+                <option value="custom">
+                  Custom User Range — (Indices {safeStart} to {safeEnd} · {speedFps} FPS)
+                </option>
+              </optgroup>
+            </select>
+            <ChevronDown className="w-4 h-4 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          </div>
+
+          {/* Active Pattern Description banner */}
+          <div className="text-[11px] text-neutral-400 flex flex-wrap items-center gap-1.5 pt-0.5">
+            <span className="text-amber-400 font-semibold">
+              {presets.find(p => p.id === activePresetId)?.name || 'Custom Pattern'}:
+            </span>
+            <span className="text-neutral-300">
+              {presets.find(p => p.id === activePresetId)?.description || `Animating user-selected range of indices [${safeStart} to ${safeEnd}].`}
+            </span>
+          </div>
+        </div>
+
         {/* Top Control Bar: Play / Pause, Direction, Speed */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
           {/* Playback Controls */}
           <div className="flex items-center gap-1.5">
             <button
@@ -319,8 +387,8 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
               {[
                 { fps: 6, label: '6 FPS' },
                 { fps: 12, label: '12 FPS (DOS)' },
-                { fps: 24, label: '24 FPS' },
-                { fps: 40, label: '40 FPS' }
+                { fps: 20, label: '20 FPS' },
+                { fps: 30, label: '30 FPS' }
               ].map(s => (
                 <button
                   key={s.fps}
@@ -339,10 +407,10 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
           </div>
         </div>
 
-        {/* Curated Retro Theme Presets */}
+        {/* Quick Pattern Chips Grid */}
         <div>
           <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1.5">
-            Curated Retro Presets
+            Quick Pattern Selector
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {presets.map(preset => {
@@ -364,7 +432,7 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
                   onClick={() => handleApplyPreset(preset)}
                   className={`p-2.5 rounded-lg border text-left transition-all cursor-pointer flex flex-col justify-between ${
                     isActive
-                      ? 'border-amber-400 bg-amber-400/10 text-neutral-100 ring-1 ring-amber-400/40'
+                      ? 'border-amber-400 bg-amber-400/10 text-neutral-100 ring-1 ring-amber-400/40 shadow-sm'
                       : 'border-neutral-800 bg-neutral-950/60 hover:border-neutral-700 text-neutral-400 hover:text-neutral-200'
                   }`}
                 >
@@ -500,65 +568,117 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
         </div>
       </div>
 
-      {/* QBasic Code & Educational Deep-Dive */}
-      <div className="rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden shadow-xl space-y-0">
-        <div className="px-4 py-2.5 border-b border-neutral-800 bg-neutral-900/60 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
-          <div className="flex items-center gap-2 text-neutral-300">
-            <Terminal className="w-4 h-4 text-amber-400" />
-            <span className="font-semibold">QBasic Source Code: Palette Cycling Loop</span>
-          </div>
-
-          <div className="flex items-center gap-2">
+      {/* QBasic Code & Palette Export Suite */}
+      <div className="space-y-3">
+        {/* Sub-tab navigation */}
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-neutral-800 pb-2">
+          <div className="flex items-center gap-1.5 bg-neutral-900 border border-neutral-800 p-1 rounded-lg text-xs">
             <button
               type="button"
-              onClick={handleCopyCode}
-              className="px-2.5 py-1 text-xs text-neutral-200 bg-neutral-800 hover:bg-neutral-700 rounded border border-neutral-700 transition-colors flex items-center gap-1 cursor-pointer"
+              onClick={() => setCodeViewMode('vga_ports')}
+              className={`px-3 py-1.5 rounded transition-all flex items-center gap-1.5 cursor-pointer font-medium ${
+                codeViewMode === 'vga_ports'
+                  ? 'bg-amber-400 text-neutral-950 font-bold shadow-sm'
+                  : 'text-neutral-400 hover:text-neutral-200'
+              }`}
             >
-              {copiedCode ? (
-                <>
-                  <Check className="w-3 h-3 text-emerald-400" />
-                  <span className="text-emerald-400">Copied!</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3 h-3 text-neutral-400" />
-                  <span>Copy BASIC Code</span>
-                </>
-              )}
+              <Cpu className="w-3.5 h-3.5" />
+              <span>OUT &amp;H3C8/&amp;H3C9 Port Commands</span>
             </button>
 
             <button
               type="button"
-              onClick={handleDownloadBas}
-              className="px-2.5 py-1 text-xs font-semibold text-neutral-950 bg-amber-400 hover:bg-amber-300 rounded transition-colors flex items-center gap-1 cursor-pointer"
+              onClick={() => setCodeViewMode('cycling_loop')}
+              className={`px-3 py-1.5 rounded transition-all flex items-center gap-1.5 cursor-pointer font-medium ${
+                codeViewMode === 'cycling_loop'
+                  ? 'bg-amber-400 text-neutral-950 font-bold shadow-sm'
+                  : 'text-neutral-400 hover:text-neutral-200'
+              }`}
             >
-              <Download className="w-3 h-3 text-neutral-950" />
-              <span>Download .BAS</span>
+              <Terminal className="w-3.5 h-3.5" />
+              <span>Cycling Animation Loop</span>
             </button>
           </div>
+
+          <span className="text-[11px] text-neutral-500 font-mono hidden sm:inline">
+            Target: MS-DOS 6.22 / QuickBASIC 4.5 / QB64
+          </span>
         </div>
 
-        {/* Code Pre Box */}
-        <div className="p-4 overflow-x-auto max-h-[380px] text-xs font-mono leading-relaxed select-text bg-neutral-950">
-          <pre className="text-neutral-300">
-            {qbasicCycleCode.split('\n').map((line, idx) => {
-              const isComment = line.trim().startsWith("'");
-              const isKeyword = /^(SCREEN|DEF SEG|BLOAD|BSAVE|DIM|OPEN|GET|PUT|OUT|INP|FOR|NEXT|DO|LOOP|WHILE|WEND|CLS|END|LOCATE|PRINT|WAIT|CONST|AS|INTEGER|PALETTE)\b/i.test(line.trim());
-              return (
-                <div key={idx} className="table-row">
-                  <span className="table-cell pr-4 text-neutral-600 select-none text-right tabular-nums w-8">
-                    {idx + 1}
-                  </span>
-                  <span className={`table-cell ${
-                    isComment ? 'text-neutral-500 italic' : isKeyword ? 'text-amber-400 font-semibold' : 'text-neutral-200'
-                  }`}>
-                    {line}
-                  </span>
-                </div>
-              );
-            })}
-          </pre>
-        </div>
+        {/* View 1: VGA Hardware Port Commands Exporter */}
+        {codeViewMode === 'vga_ports' && (
+          <VgaPaletteCodeExporter
+            palette={palette}
+            paletteName={paletteName}
+            mode={mode}
+            imageName={imageName}
+            cycleStart={safeStart}
+            cycleEnd={safeEnd}
+          />
+        )}
+
+        {/* View 2: Real-time Cycling Animation Loop Code */}
+        {codeViewMode === 'cycling_loop' && (
+          <div className="rounded-xl border border-neutral-800 bg-neutral-950 overflow-hidden shadow-xl space-y-0">
+            <div className="px-4 py-2.5 border-b border-neutral-800 bg-neutral-900/60 flex flex-wrap items-center justify-between gap-2 text-xs font-mono">
+              <div className="flex items-center gap-2 text-neutral-300">
+                <Terminal className="w-4 h-4 text-amber-400" />
+                <span className="font-semibold">QBasic Source Code: Palette Cycling Animation Loop</span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleCopyCode}
+                  className="px-2.5 py-1 text-xs text-neutral-200 bg-neutral-800 hover:bg-neutral-700 rounded border border-neutral-700 transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  {copiedCode ? (
+                    <>
+                      <Check className="w-3 h-3 text-emerald-400" />
+                      <span className="text-emerald-400">Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3 text-neutral-400" />
+                      <span>Copy Animation Code</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadBas}
+                  className="px-2.5 py-1 text-xs font-semibold text-neutral-950 bg-amber-400 hover:bg-amber-300 rounded transition-colors flex items-center gap-1 cursor-pointer"
+                >
+                  <Download className="w-3 h-3 text-neutral-950" />
+                  <span>Download .BAS</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Code Pre Box */}
+            <div className="p-4 overflow-x-auto max-h-[380px] text-xs font-mono leading-relaxed select-text bg-neutral-950">
+              <pre className="text-neutral-300">
+                {qbasicCycleCode.split('\n').map((line, idx) => {
+                  const isComment = line.trim().startsWith("'");
+                  const isKeyword = /^(SCREEN|DEF SEG|BLOAD|BSAVE|DIM|OPEN|GET|PUT|OUT|INP|FOR|NEXT|DO|LOOP|WHILE|WEND|CLS|END|LOCATE|PRINT|WAIT|CONST|AS|INTEGER|PALETTE)\b/i.test(line.trim());
+                  return (
+                    <div key={idx} className="table-row">
+                      <span className="table-cell pr-4 text-neutral-600 select-none text-right tabular-nums w-8">
+                        {idx + 1}
+                      </span>
+                      <span className={`table-cell ${
+                        isComment ? 'text-neutral-500 italic' : isKeyword ? 'text-amber-400 font-semibold' : 'text-neutral-200'
+                      }`}>
+                        {line}
+                      </span>
+                    </div>
+                  );
+                })}
+              </pre>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* How it works in QBasic / Hardware Architecture */}

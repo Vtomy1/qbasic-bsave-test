@@ -58,46 +58,77 @@ export function getCyclingPresetsForMode(
 ): CyclingPreset[] {
   if (mode.bitDepth === 8) {
     // 256-color VGA Mode 13h
+    const maxIdx = Math.min(255, paletteLength - 1);
     return [
       {
-        id: 'waterfall_river',
-        name: 'Waterfall & Stream',
-        description: 'Smooth cascading water flow (indices 16–31 grayscale or blue hue ramp).',
+        id: 'liquid_water',
+        name: 'Liquid Water',
+        description: 'Cascading river and waterfall flow across cool gradient indices (indices 16–31).',
         start: 16,
-        end: 31,
+        end: Math.min(31, maxIdx),
         speedFps: 15,
         direction: 'forward',
         iconName: 'waves'
       },
       {
-        id: 'torch_campfire',
-        name: 'Campfire & Torches',
-        description: 'Flickering fiery flame colors (classic LucasArts adventure game style).',
-        start: 24,
-        end: 31,
-        speedFps: 10,
-        direction: 'reverse',
-        iconName: 'flame'
-      },
-      {
-        id: 'cyber_neon',
-        name: 'Neon Marquee / Pulse',
-        description: 'Rapid electronic oscillation across glowing monitor indices.',
+        id: 'neon_flow',
+        name: 'Neon Flow',
+        description: 'Vibrant cyberpunk neon glow and marquee oscillation (indices 32–47).',
         start: 32,
-        end: 47,
+        end: Math.min(47, maxIdx),
         speedFps: 24,
         direction: 'forward',
         iconName: 'zap'
       },
       {
-        id: 'full_cycle',
-        name: 'Full 256 VGA Loop',
-        description: 'Continuous chromatic rotation through all 256 DAC color registers.',
+        id: 'rainbow_shift',
+        name: 'Rainbow Shift',
+        description: 'Full chromatic spectrum rotation through all active color registers.',
         start: 0,
-        end: Math.min(255, paletteLength - 1),
-        speedFps: 20,
+        end: maxIdx,
+        speedFps: 18,
         direction: 'forward',
         iconName: 'palette'
+      },
+      {
+        id: 'fire_embers',
+        name: 'Fire & Embers',
+        description: 'Organic flickering flame and torchlight turbulence (indices 24–31).',
+        start: 24,
+        end: Math.min(31, maxIdx),
+        speedFps: 10,
+        direction: 'reverse',
+        iconName: 'flame'
+      },
+      {
+        id: 'plasma_wave',
+        name: 'Plasma Wave',
+        description: 'Hypnotic undulating energy field across 24 chromatic hues (indices 48–71).',
+        start: 48,
+        end: Math.min(71, maxIdx),
+        speedFps: 20,
+        direction: 'forward',
+        iconName: 'sparkles'
+      },
+      {
+        id: 'toxic_slime',
+        name: 'Toxic Slime',
+        description: 'Slow bubbling biohazard acid pool animation (indices 72–87).',
+        start: 72,
+        end: Math.min(87, maxIdx),
+        speedFps: 8,
+        direction: 'reverse',
+        iconName: 'waves'
+      },
+      {
+        id: 'starlight_shimmer',
+        name: 'Starlight Shimmer',
+        description: 'Fast high-intensity twinkling highlights (indices 8–15).',
+        start: 8,
+        end: Math.min(15, maxIdx),
+        speedFps: 30,
+        direction: 'forward',
+        iconName: 'sparkles'
       }
     ];
   }
@@ -106,29 +137,39 @@ export function getCyclingPresetsForMode(
     // 16-color EGA/VGA Mode (SCREEN 7 / 9 / 12)
     return [
       {
-        id: 'ega_high_intensity',
-        name: 'Bright Tones Cycle',
-        description: 'Rotates bright colors (indices 8–15) for glowing magical effects.',
-        start: 8,
-        end: 15,
+        id: 'liquid_water',
+        name: 'Liquid Water',
+        description: 'Rotates blue, cyan, and light cyan shades for cascading water.',
+        start: 1,
+        end: 3,
         speedFps: 12,
         direction: 'forward',
-        iconName: 'sparkles'
+        iconName: 'waves'
       },
       {
-        id: 'ega_rainbow',
-        name: 'Classic 16 Rainbow',
-        description: 'Full EGA palette rotation across all non-black colors (1–15).',
+        id: 'neon_flow',
+        name: 'Neon Flow',
+        description: 'High-intensity EGA color cycling across indices 9 to 15.',
+        start: 9,
+        end: 15,
+        speedFps: 20,
+        direction: 'forward',
+        iconName: 'zap'
+      },
+      {
+        id: 'rainbow_shift',
+        name: 'Rainbow Shift',
+        description: 'Full EGA palette rotation across all 15 non-black colors (indices 1–15).',
         start: 1,
         end: 15,
-        speedFps: 8,
+        speedFps: 10,
         direction: 'forward',
         iconName: 'palette'
       },
       {
-        id: 'ega_torch',
-        name: 'Torch Flicker',
-        description: 'Warm brown to yellow to white cycle (indices 6, 12, 14, 15).',
+        id: 'fire_embers',
+        name: 'Fire & Embers',
+        description: 'Flickering torch flame colors (indices 12, 14, 15: red, yellow, white).',
         start: 12,
         end: 15,
         speedFps: 10,
