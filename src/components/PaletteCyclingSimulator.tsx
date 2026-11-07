@@ -6,6 +6,12 @@ import {
   CyclingPreset, 
   generateQBasicPaletteCycleCode 
 } from '../utils/paletteCycling';
+import { 
+  PaletteSortCriterion, 
+  PaletteSortDirection, 
+  sortPalette, 
+  normalizePaletteToVga6Bit 
+} from '../utils/paletteSorting';
 import { PaletteViewer } from './PaletteViewer';
 import { VgaPaletteCodeExporter } from './VgaPaletteCodeExporter';
 import { 
@@ -31,7 +37,10 @@ import {
   Info,
   ChevronDown,
   Layers,
-  Cpu
+  Cpu,
+  ArrowUpDown,
+  SlidersHorizontal,
+  CheckCircle2
 } from 'lucide-react';
 
 interface PaletteCyclingSimulatorProps {
@@ -40,6 +49,7 @@ interface PaletteCyclingSimulatorProps {
   indexedPixels: Uint8Array | null;
   mode: ScreenModeConfig;
   imageName: string;
+  onApplyPaletteToStudio?: (newPalette: RGBColor[]) => void;
 }
 
 export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = ({
@@ -47,7 +57,8 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
   paletteName,
   indexedPixels,
   mode,
-  imageName
+  imageName,
+  onApplyPaletteToStudio
 }) => {
   const maxColorIndex = Math.max(1, palette.length - 1);
 
@@ -73,12 +84,23 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [codeViewMode, setCodeViewMode] = useState<'vga_ports' | 'cycling_loop'>('vga_ports');
 
+  // Palette Sorting & VGA 6-bit Normalization State
+  const [sortCriterion, setSortCriterion] = useState<PaletteSortCriterion>('original');
+  const [sortDirection, setSortDirection] = useState<PaletteSortDirection>('asc');
+  const [normalize6Bit, setNormalize6Bit] = useState<boolean>(false);
+  const [appliedToStudio, setAppliedToStudio] = useState<boolean>(false);
+
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Clamped safe range
   const safeStart = Math.min(Math.max(0, startIndex), maxColorIndex);
   const safeEnd = Math.max(safeStart, Math.min(endIndex, maxColorIndex));
   const cycleSpan = Math.max(1, safeEnd - safeStart + 1);
+
+  // Compute the sorted / normalized base palette
+  const sortedBasePalette = useMemo(() => {
+    return sortPalette(palette, sortCriterion, sortDirection, normalize6Bit);
+  }, [palette, sortCriterion, sortDirection, normalize6Bit]);
 
   // When mode or palette changes, ensure range is clamped safely
   useEffect(() => {
@@ -126,10 +148,10 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
     return () => cancelAnimationFrame(animId);
   }, [isPlaying, speedFps, direction, cycleSpan]);
 
-  // Compute the dynamically rotated palette
+  // Compute the dynamically rotated palette based on sortedBasePalette
   const rotatedPalette = useMemo(() => {
-    return rotatePaletteRange(palette, safeStart, safeEnd, currentOffset);
-  }, [palette, safeStart, safeEnd, currentOffset]);
+    return rotatePaletteRange(sortedBasePalette, safeStart, safeEnd, currentOffset);
+  }, [sortedBasePalette, safeStart, safeEnd, currentOffset]);
 
   // Render the scene to the mini CRT canvas whenever the rotated palette updates
   useEffect(() => {
@@ -204,10 +226,18 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
       safeEnd,
       speedFps,
       direction,
-      palette,
+      sortedBasePalette,
       imageName
     );
-  }, [mode, safeStart, safeEnd, speedFps, direction, palette, imageName]);
+  }, [mode, safeStart, safeEnd, speedFps, direction, sortedBasePalette, imageName]);
+
+  const handleApplyToStudio = () => {
+    if (onApplyPaletteToStudio) {
+      onApplyPaletteToStudio(sortedBasePalette);
+      setAppliedToStudio(true);
+      setTimeout(() => setAppliedToStudio(false), 2000);
+    }
+  };
 
   const handleCopyCode = () => {
     navigator.clipboard.writeText(qbasicCycleCode);
@@ -510,13 +540,119 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
         </div>
       </div>
 
+      {/* Palette Sorting & VGA 6-Bit Normalization Control Bar */}
+      <div className="p-3.5 rounded-xl border border-neutral-800 bg-neutral-900/60 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-amber-400" />
+            <span className="text-xs font-semibold text-neutral-200">
+              Palette Organization &amp; VGA 6-Bit Normalization
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {normalize6Bit && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                <span>VGA 6-Bit Clamped (0–63 levels)</span>
+              </span>
+            )}
+            {sortCriterion !== 'original' && (
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-400/10 text-amber-300 border border-amber-400/30">
+                Sorted by {sortCriterion.toUpperCase()} ({sortDirection === 'asc' ? 'Ascending' : 'Descending'})
+              </span>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+          {/* Sort By buttons */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-neutral-400 flex items-center gap-1 font-medium">
+              <ArrowUpDown className="w-3.5 h-3.5 text-neutral-500" />
+              <span>Sort Palette By:</span>
+            </span>
+
+            <div className="flex flex-wrap bg-neutral-950 border border-neutral-800 rounded-lg p-0.5 text-xs">
+              {[
+                { id: 'original', label: 'Default Order' },
+                { id: 'hue', label: 'Hue (0°–360°)' },
+                { id: 'saturation', label: 'Saturation' },
+                { id: 'brightness', label: 'Brightness' }
+              ].map(s => (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => setSortCriterion(s.id as PaletteSortCriterion)}
+                  className={`px-2.5 py-1 rounded transition-colors cursor-pointer ${
+                    sortCriterion === s.id
+                      ? 'bg-amber-400 text-neutral-950 font-bold shadow-sm'
+                      : 'text-neutral-400 hover:text-neutral-200'
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+
+            {sortCriterion !== 'original' && (
+              <button
+                type="button"
+                onClick={() => setSortDirection(d => d === 'asc' ? 'desc' : 'asc')}
+                className="px-2.5 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 border border-neutral-700 text-xs flex items-center gap-1 cursor-pointer transition-colors"
+                title="Toggle sort direction"
+              >
+                {sortDirection === 'asc' ? '↑ Ascending' : '↓ Descending'}
+              </button>
+            )}
+          </div>
+
+          {/* Normalize 6-bit toggle & Apply to Studio button */}
+          <div className="flex flex-wrap items-center gap-3">
+            <label htmlFor="normalize-6bit-toggle" className="text-xs text-neutral-300 flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                id="normalize-6bit-toggle"
+                type="checkbox"
+                checked={normalize6Bit}
+                onChange={(e) => setNormalize6Bit(e.target.checked)}
+                className="w-4 h-4 rounded border-neutral-700 bg-neutral-800 text-amber-400 accent-amber-400 cursor-pointer"
+              />
+              <span title="Clamps all channels to 6-bit discrete levels (0 to 63) used by the IBM VGA DAC">
+                Normalize to VGA 6-Bit Levels (0–63)
+              </span>
+            </label>
+
+            {onApplyPaletteToStudio && (sortCriterion !== 'original' || normalize6Bit) && (
+              <button
+                type="button"
+                onClick={handleApplyToStudio}
+                className="px-2.5 py-1 text-xs font-semibold text-neutral-950 bg-amber-400 hover:bg-amber-300 rounded transition-colors flex items-center gap-1 cursor-pointer shadow-sm"
+                title="Apply this sorted/normalized palette to the entire studio workspace"
+              >
+                {appliedToStudio ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-neutral-950" />
+                    <span>Applied to Scene!</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-neutral-950" />
+                    <span>Apply to Scene</span>
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Side-by-side or stacked view: Live CRT Animated Viewport & Swatches */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         {/* Left: Animated Palette Swatches (7 cols) */}
         <div className="lg:col-span-7 space-y-2">
           <PaletteViewer
             palette={rotatedPalette}
-            paletteName={`${paletteName} (Live Cycling)`}
+            paletteName={`${paletteName}${sortCriterion !== 'original' ? ` (Sorted by ${sortCriterion.toUpperCase()} ${sortDirection === 'asc' ? '↑' : '↓'})` : ''}${normalize6Bit ? ' · VGA 6-Bit' : ''}`}
             cyclingRange={{ start: safeStart, end: safeEnd }}
             isCycling={isPlaying}
             currentOffset={currentOffset}
@@ -608,8 +744,8 @@ export const PaletteCyclingSimulator: React.FC<PaletteCyclingSimulatorProps> = (
         {/* View 1: VGA Hardware Port Commands Exporter */}
         {codeViewMode === 'vga_ports' && (
           <VgaPaletteCodeExporter
-            palette={palette}
-            paletteName={paletteName}
+            palette={sortedBasePalette}
+            paletteName={`${paletteName}${sortCriterion !== 'original' ? ` (${sortCriterion.toUpperCase()})` : ''}${normalize6Bit ? ' · VGA 6-Bit' : ''}`}
             mode={mode}
             imageName={imageName}
             cycleStart={safeStart}

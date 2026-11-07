@@ -66,6 +66,7 @@ export default function App() {
 
   // Active palette computed
   const [activePalette, setActivePalette] = useState<RGBColor[]>(getStandardVga256Palette());
+  const [overridePalette, setOverridePalette] = useState<RGBColor[] | null>(null);
 
   // Converted Results
   const [ditherResult, setDitherResult] = useState<DitherResult | null>(null);
@@ -162,21 +163,25 @@ export default function App() {
     if (!sourceImageData) return;
 
     // 1. Resolve Palette
-    const availablePalettes = getPalettesForBitDepth(selectedBitDepth);
-    const palConfig = availablePalettes.find(p => p.id === selectedPaletteId) || availablePalettes[0];
-    
     let resolvedPalette: RGBColor[];
-    if (palConfig.isCustom) {
-      // Sample pixels from image data to quantize
-      const sampled: RGBColor[] = [];
-      const data = sourceImageData.data;
-      const step = Math.max(1, Math.floor(data.length / 4 / 10000));
-      for (let i = 0; i < data.length; i += step * 4) {
-        sampled.push([data[i], data[i + 1], data[i + 2]]);
-      }
-      resolvedPalette = quantizePaletteMedianCut(sampled, selectedMode.colorsCount);
+    if (overridePalette) {
+      resolvedPalette = overridePalette;
     } else {
-      resolvedPalette = palConfig.colors;
+      const availablePalettes = getPalettesForBitDepth(selectedBitDepth);
+      const palConfig = availablePalettes.find(p => p.id === selectedPaletteId) || availablePalettes[0];
+      
+      if (palConfig.isCustom) {
+        // Sample pixels from image data to quantize
+        const sampled: RGBColor[] = [];
+        const data = sourceImageData.data;
+        const step = Math.max(1, Math.floor(data.length / 4 / 10000));
+        for (let i = 0; i < data.length; i += step * 4) {
+          sampled.push([data[i], data[i + 1], data[i + 2]]);
+        }
+        resolvedPalette = quantizePaletteMedianCut(sampled, selectedMode.colorsCount);
+      } else {
+        resolvedPalette = palConfig.colors;
+      }
     }
 
     setActivePalette(resolvedPalette);
@@ -207,7 +212,8 @@ export default function App() {
     selectedMode,
     selectedPaletteId,
     ditherAlgorithm,
-    adjustments
+    adjustments,
+    overridePalette
   ]);
 
   // Handle custom image file upload
@@ -336,11 +342,20 @@ export default function App() {
           {/* Mode & Palette Selector */}
           <ScreenModeSelector
             selectedBitDepth={selectedBitDepth}
-            onSelectBitDepth={(depth) => setSelectedBitDepth(depth)}
+            onSelectBitDepth={(depth) => {
+              setOverridePalette(null);
+              setSelectedBitDepth(depth);
+            }}
             selectedMode={selectedMode}
-            onSelectMode={(mode) => setSelectedMode(mode)}
+            onSelectMode={(mode) => {
+              setOverridePalette(null);
+              setSelectedMode(mode);
+            }}
             selectedPaletteId={selectedPaletteId}
-            onSelectPalette={(palId) => setSelectedPaletteId(palId)}
+            onSelectPalette={(palId) => {
+              setOverridePalette(null);
+              setSelectedPaletteId(palId);
+            }}
             customPaletteAvailable={true}
           />
 
@@ -466,6 +481,7 @@ export default function App() {
               indexedPixels={ditherResult ? ditherResult.indexedPixels : null}
               mode={selectedMode}
               imageName={imageName}
+              onApplyPaletteToStudio={(newPal) => setOverridePalette(newPal)}
             />
           )}
         </section>
