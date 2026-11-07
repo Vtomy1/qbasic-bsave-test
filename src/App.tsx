@@ -28,6 +28,7 @@ import { QBasicCodePanel } from './components/QBasicCodePanel';
 import { HexInspector } from './components/HexInspector';
 import { BsaveUploaderModal } from './components/BsaveUploaderModal';
 import { SamplePickerModal } from './components/SamplePickerModal';
+import { PaletteCyclingSimulator } from './components/PaletteCyclingSimulator';
 
 import { 
   Tv, 
@@ -406,7 +407,7 @@ export default function App() {
                 }`}
               >
                 <Palette className="w-3.5 h-3.5" />
-                <span>Palette Matrix</span>
+                <span>Palette Matrix &amp; Cycling</span>
               </button>
             </div>
 
@@ -459,29 +460,13 @@ export default function App() {
           )}
 
           {activeTab === 'palette' && (
-            <div className="space-y-4">
-              <PaletteViewer
-                palette={activePalette}
-                paletteName={selectedPaletteId}
-              />
-
-              {/* Technical description of VGA DAC Registers */}
-              <div className="p-4 rounded-xl border border-neutral-800 bg-neutral-900/60 text-xs text-neutral-400 space-y-2">
-                <div className="font-semibold text-neutral-200 flex items-center gap-2">
-                  <Terminal className="w-4 h-4 text-amber-400" />
-                  IBM VGA Digital-to-Analog Converter (DAC) Architecture
-                </div>
-                <p className="leading-relaxed">
-                  The IBM PS/2 VGA DAC hardware (INMOS INM G171) contains 256 color registers. Each channel 
-                  (Red, Green, Blue) accepts a 6-bit value from <strong>0 to 63</strong> (giving $64^3 = 262,144$ possible master colors).
-                </p>
-                <p className="leading-relaxed">
-                  In QBasic / QuickBASIC, port <code>&amp;H3C8</code> is written with the starting palette index (0–255). 
-                  Then, three consecutive bytes are written to port <code>&amp;H3C9</code> for Red, Green, and Blue. 
-                  The DAC automatically auto-increments to the next color index after every third write!
-                </p>
-              </div>
-            </div>
+            <PaletteCyclingSimulator
+              palette={activePalette}
+              paletteName={selectedPaletteId}
+              indexedPixels={ditherResult ? ditherResult.indexedPixels : null}
+              mode={selectedMode}
+              imageName={imageName}
+            />
           )}
         </section>
       </main>
